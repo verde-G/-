@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2a2d40">
+<title>멍</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #2a2d40;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+    color: #d3dae0;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.idle { cursor: none; }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: manipulation;
+    transition: opacity 0.7s ease;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #scene.fade { opacity: 0; }
+  html, body { background: #14141a; }
+
+  /* 가장자리를 살짝 가라앉히는 정적 비네트 */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse 120% 105% at 50% 44%,
+      rgba(20, 18, 34, 0) 50%, rgba(20, 18, 34, 0.3) 100%);
+  }
+
+  /* 진입 문구 */
+  .intro {
+    position: fixed;
+    left: 0; right: 0;
+    top: 21%;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    animation: intro 3s ease-in-out 0.2s 1 forwards;
+  }
+  .intro h1 {
+    margin: 0;
+    font-weight: 200;
+    font-size: clamp(44px, 9vmin, 84px);
+    letter-spacing: 0.08em;
+    padding-left: 0.08em;
+    color: rgba(250, 244, 236, 0.95);
+    text-shadow: 0 0 24px rgba(60, 50, 70, 0.35);
+  }
+  .intro p {
+    margin: 1.1em 0 0;
+    font-weight: 300;
+    font-size: clamp(13px, 1.9vmin, 16px);
+    letter-spacing: 0.22em;
+    padding-left: 0.22em;
+    color: rgba(250, 244, 236, 0.88);
+    text-shadow: 0 0 14px rgba(60, 50, 70, 0.45);
+  }
+  @keyframes intro {
+    0%   { opacity: 0; }
+    25%  { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* 조작부 */
+  .controls {
+    position: fixed;
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    display: flex;
+    gap: 2px;
+  }
+
+  .controls button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: rgba(250, 242, 232, 0.8);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    border-radius: 2px;
+    transition: color 0.3s ease;
+  }
+  .controls button:hover { color: #fff; }
+  .controls button:focus-visible {
+    outline: 1px solid rgba(255, 246, 236, 0.85);
+    outline-offset: -5px;
+    color: rgba(232, 237, 241, 0.95);
+  }
+  .controls svg {
+    width: 18px; height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .controls [hidden] { display: none; }
+
+  noscript p {
+    position: fixed; inset: auto 0 12% 0;
+    text-align: center; font-size: 14px; color: #aab4bc;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene" role="img"
+  aria-label="천천히 움직이는 수면 풍경. 노을 지는 돌다리와 밤의 다리, 두 가지 배경을 고를 수 있습니다. 수면을 누르면 작은 잔물결이 퍼졌다 사라집니다."></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<div class="intro">
+  <h1>멍</h1>
+  <p>아무것도 하지 않아도 괜찮아요.</p>
+</div>
+
+<div class="controls" id="controls">
+  <button type="button" id="btnScene" aria-label="배경 바꾸기: 밤의 다리" title="배경 바꾸기: 밤의 다리 (B)">
+    <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 12.5h13M4 12.5c1-5 9-5 10 0M9 8.7v3.8M6.3 9.9v2.6M11.7 9.9v2.6M4 15h10"/></svg>
+  </button>
+  <button type="button" id="btnPause" aria-label="움직임 일시정지" title="움직임 일시정지 (Space)">
+    <svg viewBox="0 0 18 18" aria-hidden="true" id="icoPause"><path d="M6.5 4v10M11.5 4v10"/></svg>
+    <svg viewBox="0 0 18 18" aria-hidden="true" id="icoPlay" hidden><path d="M6 3.8v10.4l8-5.2z"/></svg>
+  </button>
+  <button type="button" id="btnFull" aria-label="전체화면으로 전환" title="전체화면 (F)">
+    <svg viewBox="0 0 18 18" aria-hidden="true" id="icoEnter"><path d="M3 7V3h4M11 3h4v4M15 11v4h-4M7 15H3v-4"/></svg>
+    <svg viewBox="0 0 18 18" aria-hidden="true" id="icoExit" hidden><path d="M7 3v4H3M15 7h-4V3M11 15v-4h4M3 11h4v4"/></svg>
+  </button>
+</div>
+
+<noscript><p>이 화면은 JavaScript가 켜져 있어야 움직입니다.</p></noscript>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ==========================================================
+     설정값 — 색상, 속도, 강도는 여기서 조정합니다.
+     ========================================================== */
+  const CONFIG = {
+    colors: {
+      skyTop:     '#6d7791',   // 하늘 위쪽 (회청색)
+      skyMid:     '#a39ba6',   // 하늘 중간 (옅은 보랏빛 회색)
+      skyLow:     '#dba981',   // 수평선 위 (살구색)
+      skyHorizon: '#ec9a55',   // 수평선 부근 하늘 (주황)
+      cloud:      '#8a8296',   // 하늘의 옅은 층
+      glow:       '#ffd09a',   // 수평선 너머의 노을빛
+      haze:       '#e9a56c',   // 수평선을 흐리는 안개
+      waterFar:   '#d99258',   // 먼 수면 (노을이 비친 색)
+      waterMid:   '#7a6468',   // 중간 수면
+      waterNear:  '#2a2d40',   // 가까운 수면 (어두운 남보라)
+      line:       '#ffe6c8',   // 물결 선
+      shore:      '#5d4955',   // 건너편 물가의 낮은 실루엣
+      willow:     ['#3f4430', '#565733', '#6e6b3a', '#85793f'],   // 왼쪽 버드나무 (역광의 올리브색)
+      willowMass: '#34382c',
+      reed:       ['#4e2b2a', '#6f3a2b', '#93532f', '#b47a3e'],   // 오른쪽 갈대 (적갈색)
+      reedMass:   '#3b2429',
+      stoneLight: '#928f9e',   // 돌다리 난간 (밝은 쪽)
+      stoneDark:  '#605f72'    // 돌다리 난간 (어두운 쪽)
+    },
+
+    // 두 번째 배경: 밤의 다리
+    nightColors: {
+      skyTop:     '#121214',
+      skyMid:     '#1a1919',
+      skyLow:     '#22201f',
+      skyHorizon: '#2b2623',
+      cloud:      '#454240',
+      glow:       '#7a5a3c',   // 도시 불빛이 하늘에 번진 색
+      haze:       '#2a2522',
+      waterFar:   '#211e1c',
+      waterMid:   '#141313',
+      waterNear:  '#09090a',
+      line:       '#b8b0a4',
+      bridge:     '#ec8a2c',   // 아치와 트러스의 주황 조명
+      bridgeDark: '#2c2523',   // 조명이 없는 교량 구간
+      lamp:       '#f4f0e6',   // 가로등
+      land:       '#0c0b0b',   // 건너편 땅
+      beach:      '#060606',   // 앞쪽 물가
+      cityLights: ['#f4f0e6', '#f0b45c', '#70d4b2', '#e2554c']
+    },
+    bridgeReflection: 1.0,  // 다리 불빛이 물에 비치는 세기
+
+    horizon: 0.44,          // 수평선 위치 (0 = 화면 맨 위, 1 = 맨 아래)
+
+    waveSpeed: 1.0,         // 물결 속도 배율 (작을수록 느림)
+    waveStrength: 1.0,      // 물결 높이 배율
+    lineOpacity: 0.5,       // 물결 선의 최대 불투명도
+
+    objectSpeed: 0.6,       // 버드나무·갈대가 흔들리는 속도 배율 (물결 1.0 기준, 물결보다 느리게)
+    objectSway: 1.0,        // 버드나무·갈대가 흔들리는 폭 배율
+
+    skySpeed: 1.0,          // 하늘 층이 흐르는 속도 배율
+    cloudOpacity: 0.2,      // 하늘 층의 최대 불투명도
+    lightStrength: 1.0,     // 수평선 빛의 세기 배율
+    lightSpeed: 1.0,        // 빛이 변하는 속도 배율
+
+    rippleStrength: 1.0,    // 클릭 잔물결 세기
+    rippleSize: 0.15,       // 클릭 잔물결 크기 (수면 높이 대비 반지름)
+    rippleDuration: 6.5,    // 클릭 잔물결 지속 시간 (초)
+    maxRipples: 6,
+
+    reducedMotionSpeed: 0.3,     // '움직임 줄이기' 설정 시 속도 배율
+    reducedMotionStrength: 0.6,  // '움직임 줄이기' 설정 시 물결 높이 배율
+
+    fps: 30,                // 목표 프레임 (느린 장면이라 30이면 충분)
+    maxPixelRatio: 1.5,     // 픽셀 밀도 상한
+    maxPixels: 2400000,     // 캔버스 총 픽셀 상한 (부하 제한)
+    cursorHideDelay: 2800   // 가만히 있을 때 커서가 숨는 시간 (ms)
+  };
+
+  /* 물결 성분: 파수(k), 진행 방향(rad), 진폭, 각속도(rad/s)
+     주기가 서로 맞물리지 않아 반복의 이음새가 생기지 않습니다. */
+  const WAVES = [
+    { k: 2.6,  dir:  0.55, amp: 1.00, w: 0.163 },
+    { k: 5.5,  dir: -0.80, amp: 0.56, w: 0.257 },
+    { k: 10.0, dir:  1.00, amp: 0.32, w: 0.379 },
+    { k: 17.0, dir: -0.35, amp: 0.19, w: 0.541 },
+    { k: 29.0, dir:  1.30, amp: 0.10, w: 0.787 }
+  ].map((c, i) => ({
+    kx: c.k * Math.sin(c.dir), kz: c.k * Math.cos(c.dir),
+    k: c.k, amp: c.amp, w: c.w, ph: i * 1.913 + 0.4
+  }));
+
+  /* ---------- 도구 ---------- */
+  const hex = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(4) + ')';
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const parsePal = src => { const o = {}; for (const k in src) { const v = src[k]; o[k] = Array.isArray(v) ? v.map(hex) : hex(v); } return o; };
+  const PAL = { sunset: parsePal(CONFIG.colors), night: parsePal(CONFIG.nightColors) };
+  // 장면별 세기 보정 (빛, 하늘 층, 물결 선, 안개)
+  const SCENE_MUL = { sunset: { glow: 1, cloud: 1, line: 1, haze: 1 }, night: { glow: 0.4, cloud: 0.5, line: 0.5, haze: 0.7 } };
+  let scene = 'sunset', C = PAL.sunset, SC = SCENE_MUL.sunset;
+
+  /* 값 노이즈 (하늘 층에 사용) */
+  const PERM = new Uint8Array(512), RAND = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { PERM[i] = i; RAND[i] = Math.random(); }
+  for (let i = 255; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = PERM[i]; PERM[i] = PERM[j]; PERM[j] = t; }
+  for (let i = 0; i < 256; i++) PERM[i + 256] = PERM[i];
+  function noise(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    let fx = x - xi, fy = y - yi;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    const X = xi & 255, Y = yi & 255;
+    const a = RAND[PERM[PERM[X] + Y]],     b = RAND[PERM[PERM[X + 1] + Y]];
+    const c = RAND[PERM[PERM[X] + Y + 1]], d = RAND[PERM[PERM[X + 1] + Y + 1]];
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  }
+  const fbm = (x, y) => noise(x, y) * 0.57 + noise(x * 2.03 + 7.1, y * 2.03 + 3.3) * 0.29 + noise(x * 4.1 + 1.7, y * 4.1 + 9.2) * 0.14;
+
+  /* ---------- 캔버스 ---------- */
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  let W = 0, H = 0, dpr = 1, hy = 0, waterH = 0;
+  let rows = 0, cols = 0, step = 14;
+  let rowS = null, ys = null;
+
+  // 하늘 층 텍스처 (저해상도로 계산 후 부드럽게 확대)
+  const TW = 144, TH = 52;
+  const skyTex = document.createElement('canvas'); skyTex.width = TW; skyTex.height = TH;
+  const skyCtx = skyTex.getContext('2d');
+  const skyImg = skyCtx.createImageData(TW, TH);
+  function tintSky() {
+    for (let i = 0; i < TW * TH; i++) {
+      skyImg.data[i * 4] = C.cloud[0]; skyImg.data[i * 4 + 1] = C.cloud[1]; skyImg.data[i * 4 + 2] = C.cloud[2];
+    }
+  }
+  tintSky();
+
+  // 그라데이션의 띠 현상을 줄이는 정적 입자감 (움직이지 않음)
+  const grainTile = document.createElement('canvas'); grainTile.width = grainTile.height = 128;
+  (function () {
+    const g = grainTile.getContext('2d'), im = g.createImageData(128, 128);
+    for (let i = 0; i < 128 * 128; i++) {
+      const v = Math.random() < 0.5 ? 0 : 255;
+      im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v;
+      im.data[i * 4 + 3] = Math.random() * 11;
+    }
+    g.putImageData(im, 0, 0);
+  })();
+  let grainPattern = null;
+
+  // 돌 표면의 정적 반점
+  const stoneTile = document.createElement('canvas'); stoneTile.width = stoneTile.height = 128;
+  (function () {
+    const g = stoneTile.getContext('2d'), im = g.createImageData(128, 128);
+    for (let i = 0; i < 128 * 128; i++) {
+      const v = Math.random() < 0.55 ? 20 : 255;
+      im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v;
+      im.data[i * 4 + 3] = Math.pow(Math.random(), 2.2) * 60;
+    }
+    g.putImageData(im, 0, 0);
+  })();
+  let stonePattern = null;
+
+  /* ---------- 사물 (한 번만 무작위로 정하고, 화면 크기에 맞춰 배치) ---------- */
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const SHORE = new Float32Array(512);
+  for (let i = 0; i < SHORE.length; i++) SHORE[i] = 0.35 + 0.65 * (noise(i * 0.05, 3.3) * 0.75 + noise(i * 0.17, 8.1) * 0.25);
+  const WILLOW = Array.from({ length: 230 }, () => ({
+    u: Math.pow(Math.random(), 1.3), v: Math.random(), len: rnd(0.38, 0.9), drift: rnd(0, 0.13),
+    ph: rnd(-0.7, 0.7), col: (Math.pow(Math.random(), 1.6) * 4) | 0, a: rnd(0.5, 0.92), w: rnd(1, 2.3)
+  }));
+  const REEDS = Array.from({ length: 84 }, () => ({
+    u: Math.pow(Math.random(), 1.45), h: rnd(0.42, 1), lean: rnd(-0.26, 0.03),
+    ph: rnd(-0.7, 0.7), col: (Math.random() * 4) | 0, a: rnd(0.6, 0.95), w: rnd(1.1, 2.4),
+    leaves: [0, 1].map(() => ({ p: rnd(0.3, 0.8), side: Math.random() < 0.6 ? -1 : 1, l: rnd(0.1, 0.22) }))
+  }));
+  // 바람: 주기가 맞물리지 않는 느린 파동의 합 (-1 ~ 1)
+  const gust = (x, t, ph) => 0.55 * Math.sin(t * 0.45 + x * 0.004 + ph)
+                           + 0.30 * Math.sin(t * 0.27 - x * 0.006 + 1.7 + ph * 1.3)
+                           + 0.15 * Math.sin(t * 0.80 + x * 0.010 + 4.0 + ph * 2.0);
+  // 밤의 다리: 도시 불빛 (한 번만 무작위로 정함)
+  const CITY = Array.from({ length: 46 }, () => ({
+    u: Math.random(), v: Math.random(), col: (Math.pow(Math.random(), 1.8) * 4) | 0,
+    r: rnd(0.6, 1.4), a: rnd(0.45, 1), refl: Math.random() < 0.35
+  }));
+  const bridgeCv = document.createElement('canvas');
+  let BR = null, LIGHTS = [];
+
+  function buildBridge() {
+    const N = PAL.night;
+    const dH = clamp(H * 0.05, 22, 50), span = clamp(W * 0.3, 150, 520), cxA = W * 0.3;
+    const ah = Math.min(span * 0.3, H * 0.15), BH = Math.ceil(ah + dH + 40);
+    bridgeCv.width = Math.round(W * dpr); bridgeCv.height = Math.round(BH * dpr);
+    const g = bridgeCv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, BH);
+    const yd = BH - dH, gh = Math.max(4, dH * 0.2), landH = dH * 0.4, drop = dH * 0.3;
+    const litEnd = Math.min(W, cxA + span * 1.25);
+    const sp = clamp(W * 0.036, 26, 60);
+    LIGHTS = [];
+
+    // 건너편 땅과 도시 불빛
+    g.fillStyle = rgba(N.land, 1);
+    g.fillRect(0, BH - landH, W, landH + 1);
+    for (const c of CITY) {
+      const x = c.u * W, y = yd + gh + 2 + c.v * (dH - gh - 4), col = N.cityLights[c.col];
+      g.fillStyle = rgba(col, c.a * 0.25); g.beginPath(); g.arc(x, y, c.r * 3, 0, 6.2832); g.fill();
+      g.fillStyle = rgba(col, c.a); g.beginPath(); g.arc(x, y, c.r, 0, 6.2832); g.fill();
+      if (c.refl) LIGHTS.push({ x: x, col: col, i: 0.4 * c.a, len: 0.22 + 0.3 * c.v, w: 1.4 });
+    }
+
+    // 교각
+    g.fillStyle = rgba(N.bridgeDark, 0.9);
+    for (let x = cxA - span * 2.5; x < W + span; x += span * 0.5) g.fillRect(x - 2, yd, 4, dH - landH * 0.5);
+
+    // 상판 트러스: 조명 없는 구간 → 조명 구간
+    const girder = (x0, x1, col, a, lw) => {
+      g.strokeStyle = rgba(col, a); g.lineWidth = lw; g.lineJoin = 'round';
+      g.beginPath(); g.moveTo(x0, yd); g.lineTo(x1, yd); g.moveTo(x0, yd + gh); g.lineTo(x1, yd + gh);
+      const n = Math.max(2, Math.round((x1 - x0) / (gh * 1.1)));
+      for (let i = 0; i <= n; i++) { const x = x0 + (x1 - x0) * i / n; i ? g.lineTo(x, i % 2 ? yd : yd + gh) : g.moveTo(x, yd + gh); }
+      g.stroke();
+    };
+    girder(litEnd, W + 4, N.bridgeDark, 1, 1.4);
+    g.shadowColor = rgba(N.bridge, 0.9); g.shadowBlur = 7;
+    girder(-4, litEnd, N.bridge, 0.85, 1.1);
+
+    // 아치 (위·아래 현재와 그 사이의 격자)
+    const yo = u => yd + gh + drop - (ah + gh + drop) * (1 - u * u);
+    const yi = u => yo(u) + ah * (0.1 + 0.14 * u * u);
+    const M = 36, X = u => cxA + u * span / 2;
+    g.strokeStyle = rgba(N.bridge, 0.95); g.lineWidth = 1.5;
+    g.beginPath();
+    for (let i = 0; i <= M; i++) { const u = -1 + 2 * i / M; i ? g.lineTo(X(u), yo(u)) : g.moveTo(X(u), yo(u)); }
+    for (let i = 0; i <= M; i++) { const u = -1 + 2 * i / M; i ? g.lineTo(X(u), yi(u)) : g.moveTo(X(u), yi(u)); }
+    g.stroke();
+    g.lineWidth = 1; g.strokeStyle = rgba(N.bridge, 0.8);
+    g.beginPath();
+    for (let i = 0; i <= M; i++) { const u = -1 + 2 * i / M, y = i % 2 ? yo(u) : yi(u); i ? g.lineTo(X(u), y) : g.moveTo(X(u), y); }
+    g.stroke();
+    // 행어 (아치에서 상판으로 내려오는 줄)
+    g.shadowBlur = 0; g.strokeStyle = rgba(N.bridge, 0.4); g.lineWidth = 0.8;
+    g.beginPath();
+    for (let i = 2; i < 16; i++) { const u = -1 + 2 * i / 18 + 1 / 18; if (yi(u) < yd - 2) { g.moveTo(X(u), yi(u)); g.lineTo(X(u), yd); } }
+    g.stroke();
+    for (let i = 0; i <= 16; i++) {
+      const u = -1 + 2 * i / 16;
+      LIGHTS.push({ x: X(u), col: N.bridge, i: 0.55, len: 0.3 + 0.38 * (1 - u * u), w: 2.2 });
+    }
+    for (let x = sp * 0.3; x < litEnd; x += sp * 0.8) if (Math.abs(x - cxA) > span / 2) LIGHTS.push({ x: x, col: N.bridge, i: 0.32, len: 0.26, w: 1.8 });
+
+    // 가로등
+    const poleH = dH * 0.5;
+    for (let x = sp * 0.6; x < W; x += sp) {
+      g.fillStyle = rgba(N.lamp, 0.13); g.beginPath(); g.arc(x, yd - poleH, 3.6, 0, 6.2832); g.fill();
+      g.fillStyle = rgba(N.lamp, 0.95); g.beginPath(); g.arc(x, yd - poleH, 1.5, 0, 6.2832); g.fill();
+      LIGHTS.push({ x: x, col: N.lamp, i: 0.5, len: 0.5, w: 1.5 });
+    }
+    BR = { BH: BH };
+  }
+
+  // 밤 장면 앞쪽 물가의 윗선
+  const beachTop = x => { const q = x / (W * 0.62); return q >= 1 ? H + 9 : H * 0.8 + H * 0.2 * Math.pow(q, 1.7); };
+  function drawBeach() {
+    ctx.fillStyle = rgba(C.beach, 1);
+    ctx.beginPath(); ctx.moveTo(-2, H + 2);
+    for (let i = 0; i <= 40; i++) { const x = W * 0.62 * i / 40; ctx.lineTo(x, beachTop(x)); }
+    ctx.lineTo(W * 0.62, H + 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,170,150,0.07)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) { const x = W * 0.62 * i / 40; i ? ctx.lineTo(x, beachTop(x)) : ctx.moveTo(x, beachTop(x)); }
+    ctx.stroke();
+  }
+
+  // 다리의 형상이 수면에 비친 모습 (가는 띠로 잘라 물결처럼 어긋나게)
+  function drawBridgeMirror() {
+    const BH = BR.BH, sh = 3, K = Math.ceil(BH / sh), k = CONFIG.bridgeReflection;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < K; j++) {
+      const sy = BH - (j + 1) * sh; if (sy < 0) break;
+      const d = j / K, wob = (1 + 5 * d) * (0.6 * Math.sin(j * 0.9 + tWave * 0.5) + 0.4 * Math.sin(j * 0.37 - tWave * 0.31 + 2));
+      ctx.globalAlpha = 0.5 * k * (1 - 0.65 * d);
+      ctx.drawImage(bridgeCv, 0, sy * dpr, bridgeCv.width, sh * dpr, wob, hy + j * sh * 1.15, W, sh * 1.15 + 0.5);
+    }
+    ctx.restore();
+  }
+
+  // 불빛이 물결 위에 길게 늘어지는 반영
+  function drawLightStreaks() {
+    const k = CONFIG.bridgeReflection, tw = tWave;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let n = 0; n < LIGHTS.length; n++) {
+      const Lt = LIGHTS[n], c0 = clamp(Math.round(Lt.x / step), 0, cols - 1);
+      ctx.fillStyle = rgba(Lt.col, 1);
+      for (let i = 0; i < rows; i++) {
+        const s = rowS[i]; if (s >= Lt.len) break;
+        const f = Math.pow(1 - s / Lt.len, 1.3);
+        const a = 1.35 * Lt.i * k * f * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(i * 2.3 + Lt.x * 0.031 + tw * 0.5)));
+        if (a < 0.01) continue;
+        const w = (Lt.w + 1) * (1 + 7 * s), hgt = 1.2 + 1.6 * s;
+        const wob = 9 * s * Math.sin(i * 1.7 + Lt.x * 0.05 + tw * 0.33);
+        ctx.globalAlpha = Math.min(1, a);
+        ctx.fillRect(Lt.x + wob - w / 2, ys[i * cols + c0] - hgt / 2, w, hgt);
+      }
+    }
+    ctx.restore();
+  }
+
+  let pL = 0, pR = 0;                       // 난간 윗선의 왼쪽/오른쪽 높이
+  const pTop = x => pL + (pR - pL) * x / W;
+
+  function resize() {
+    W = Math.max(1, window.innerWidth);
+    H = Math.max(1, window.innerHeight);
+    dpr = Math.min(window.devicePixelRatio || 1, CONFIG.maxPixelRatio);
+    if (W * H * dpr * dpr > CONFIG.maxPixels) dpr = Math.sqrt(CONFIG.maxPixels / (W * H));
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+
+    hy = Math.round(H * CONFIG.horizon);
+    waterH = H - hy;
+
+    rows = clamp(Math.round(waterH / 8.5), 30, 84);
+    step = clamp(W / 120, 9, 16);
+    cols = Math.ceil(W / step) + 2;
+    rowS = new Float32Array(rows);
+    for (let i = 0; i < rows; i++) rowS[i] = Math.pow((i + 0.5) / rows, 2.1);
+    ys = new Float32Array(rows * cols);
+    grainPattern = ctx.createPattern(grainTile, 'repeat');
+    stonePattern = ctx.createPattern(stoneTile, 'repeat');
+    const ph = clamp(H * 0.115, 54, 135);
+    pL = H - ph * 0.72; pR = H - ph * 1.28;
+    buildBridge();
+    if (!running) render();
+  }
+
+  /* ---------- 시간 ---------- */
+  let tWave = Math.random() * 500;   // 물결 시간
+  let tSky = Math.random() * 500;    // 하늘 시간
+  let tLight = Math.random() * 500;  // 빛 시간
+  let tRipple = 0;                   // 잔물결 시간
+  let tObj = Math.random() * 500;    // 사물(바람) 시간
+  let paused = false, running = false, rafId = 0, lastFrame = 0;
+
+  const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let reduced = mqReduce.matches;
+  (mqReduce.addEventListener ? mqReduce.addEventListener.bind(mqReduce, 'change') : mqReduce.addListener.bind(mqReduce))(e => { reduced = e.matches; });
+
+  /* ---------- 잔물결 ---------- */
+  const ripples = [];   // { x, z, t0 } — 수면 위의 좌표로 저장해 화면 크기가 바뀌어도 유지
+  function addRipple(px, py) {
+    if (paused) return;
+    const s = (py - hy) / waterH;
+    if (s <= 0.004 || py >= (scene === 'sunset' ? pTop(px) : beachTop(px))) return;   // 하늘, 난간, 물가는 반응하지 않음
+    const sc = clamp(s, 0.04, 1), z = 1 / sc;
+    ripples.push({ x: (px - W / 2) / waterH * z, z: z, t0: tRipple });
+    if (ripples.length > CONFIG.maxRipples) ripples.shift();
+  }
+
+  /* ---------- 하늘 층 ---------- */
+  function updateSky() {
+    const d = skyImg.data, asp = clamp(W / Math.max(1, hy), 1, 5);
+    const t = tSky, op = CONFIG.cloudOpacity * 255 * SC.cloud;
+    for (let j = 0; j < TH; j++) {
+      const v = (j + 0.5) / TH;
+      const depth = 1 / (1.1 - v);               // 수평선으로 갈수록 멀어지는 층
+      const mask = sstep(0, 0.4, v) * (1 - 0.9 * sstep(0.72, 1, v));
+      const zc = depth;
+      for (let i = 0; i < TW; i++) {
+        const x = ((i + 0.5) / TW - 0.5) * depth * asp * 0.62;
+        const n = fbm(x * 1.1 + t * 0.012, zc * 1.5 + t * 0.004) * 0.62
+                + fbm(x * 0.55 - t * 0.007 + 31.7, zc * 0.8 + 12.3 - t * 0.003) * 0.38;
+        d[(j * TW + i) * 4 + 3] = sstep(0.4, 0.8, n) * mask * op;
+      }
+    }
+    skyCtx.putImageData(skyImg, 0, 0);
+  }
+
+  /* ---------- 사물 그리기 ---------- */
+  function shorePath(dir, scale) {
+    const sh = clamp(H * 0.045, 16, 46) * scale, stepX = 8, n = Math.ceil(W / stepX) + 1;
+    ctx.beginPath();
+    ctx.moveTo(0, hy);
+    for (let i = 0; i < n; i++) ctx.lineTo(i * stepX, hy + dir * sh * SHORE[i % SHORE.length]);
+    ctx.lineTo(W, hy);
+    ctx.closePath();
+  }
+
+  function drawWillow(sw) {
+    const ww = clamp(W * 0.21, 120, 360), top = hy - H * 0.11, span = H * 0.9 - top, t = tObj;
+    // 뒤쪽의 어두운 덩어리
+    ctx.save();
+    ctx.translate(-ww * 0.12, top + span * 0.62); ctx.scale(1, span * 0.66 / (ww * 0.98));
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, ww * 0.98);
+    g.addColorStop(0, rgba(C.willowMass, 0.96));
+    g.addColorStop(0.6, rgba(C.willowMass, 0.82));
+    g.addColorStop(0.85, rgba(C.willowMass, 0.35));
+    g.addColorStop(1, rgba(C.willowMass, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-ww, -ww, ww * 2.2, ww * 2.2);
+    ctx.restore();
+    // 늘어진 가지
+    ctx.lineCap = 'round';
+    for (let i = 0; i < WILLOW.length; i++) {
+      const b = WILLOW[i];
+      const ax = -0.08 * ww + b.u * ww * 0.98, q = clamp(ax / ww, 0, 1);
+      const ay = top + span * (0.03 + 0.42 * q * q) + b.v * span * 0.3;
+      const L = Math.min(b.len * span * 0.75, top + span * 1.02 - ay);
+      const dx = L * (b.drift + sw * (0.03 + 0.075 * gust(ax, t, b.ph)));
+      ctx.globalAlpha = b.a;
+      ctx.strokeStyle = rgba(C.willow[b.col], 1);
+      ctx.lineWidth = b.w;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(ax + dx * 0.25, ay + L * 0.55, ax + dx, ay + L);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawReeds(sw) {
+    const rw = clamp(W * 0.24, 130, 400), by = H * 0.94, t = tObj;
+    ctx.save();
+    ctx.translate(W + rw * 0.05, H * 0.9); ctx.scale(1, 1.25);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rw * 0.9);
+    g.addColorStop(0, rgba(C.reedMass, 0.95));
+    g.addColorStop(0.55, rgba(C.reedMass, 0.7));
+    g.addColorStop(1, rgba(C.reedMass, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-rw, -rw, rw * 2, rw * 2);
+    ctx.restore();
+
+    ctx.lineCap = 'round';
+    for (let i = 0; i < REEDS.length; i++) {
+      const r = REEDS[i];
+      const bx = W + rw * 0.04 - r.u * rw;
+      const h = H * 0.52 * (1 - 0.62 * r.u) * r.h;
+      const sway = h * sw * 0.075 * gust(bx, t, r.ph);
+      const cxp = bx + r.lean * h * 0.25, cyp = by - h * 0.62;
+      const tx = bx + r.lean * h + sway, ty = by - h;
+      ctx.globalAlpha = r.a;
+      ctx.strokeStyle = rgba(C.reed[r.col], 1);
+      ctx.lineWidth = r.w;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(cxp, cyp, tx, ty);
+      ctx.stroke();
+      // 줄기 위의 점 (2차 베지어)
+      const pt = p => { const m = 1 - p; return [m * m * bx + 2 * m * p * cxp + p * p * tx, m * m * by + 2 * m * p * cyp + p * p * ty]; };
+      // 이삭
+      const e = pt(0.86);
+      ctx.lineWidth = r.w * 2.3;
+      ctx.beginPath(); ctx.moveTo(e[0], e[1]); ctx.lineTo(tx, ty); ctx.stroke();
+      // 잎
+      ctx.lineWidth = r.w * 0.8;
+      for (let k = 0; k < 2; k++) {
+        const lf = r.leaves[k], o = pt(lf.p), ll = lf.l * h, ls = sway * lf.p * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(o[0], o[1]);
+        ctx.quadraticCurveTo(o[0] + lf.side * ll * 0.55 + ls * 0.5, o[1] - ll * 0.45, o[0] + lf.side * ll + ls, o[1] + ll * 0.15);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawParapet() {
+    ctx.beginPath();
+    ctx.moveTo(-2, pL); ctx.lineTo(W + 2, pR); ctx.lineTo(W + 2, H + 2); ctx.lineTo(-2, H + 2);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, Math.min(pL, pR), 0, H);
+    g.addColorStop(0, rgba(C.stoneLight, 1));
+    g.addColorStop(1, rgba(C.stoneDark, 1));
+    ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = stonePattern; ctx.fill();
+    // 돌 이음매
+    const jx = W * 0.36, jy = pTop(jx);
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(40,38,54,0.3)';
+    ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(jx + (H - jy) * 0.9, H); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,240,225,0.14)';
+    ctx.beginPath(); ctx.moveTo(jx + 1.6, jy); ctx.lineTo(jx + 1.6 + (H - jy) * 0.9, H); ctx.stroke();
+    // 윗모서리에 닿는 노을빛
+    ctx.strokeStyle = rgba(C.glow, 0.3);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-2, pL); ctx.lineTo(W + 2, pR); ctx.stroke();
+  }
+
+  /* ---------- 그리기 ---------- */
+  function render() {
+    if (!W) return;
+    const cx = W / 2;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // 빛: 아주 느리게 위치와 세기가 변한다
+    const tl = tLight;
+    const lx = W * (0.5 + 0.07 * Math.sin(tl * 0.0113) + 0.035 * Math.sin(tl * 0.0191 + 1.2));
+    const L = SC.glow * CONFIG.lightStrength * (0.78 + 0.22 * (0.6 * Math.sin(tl * 0.0227) + 0.4 * Math.sin(tl * 0.0371 + 2.1)));
+
+    // 하늘
+    let g = ctx.createLinearGradient(0, 0, 0, hy);
+    g.addColorStop(0, rgba(C.skyTop, 1));
+    g.addColorStop(0.45, rgba(C.skyMid, 1));
+    g.addColorStop(0.82, rgba(C.skyLow, 1));
+    g.addColorStop(1, rgba(C.skyHorizon, 1));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, hy + 1);
+
+    // 수평선 너머의 넓고 흐린 빛 (특정한 물체로 보이지 않게 넓게 퍼뜨림)
+    const R = Math.max(W, H) * 0.8;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, hy + 1); ctx.clip();
+    ctx.translate(lx, hy); ctx.scale(1, 0.5);
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, rgba(C.glow, 0.36 * L));
+    g.addColorStop(0.3, rgba(C.glow, 0.17 * L));
+    g.addColorStop(0.65, rgba(C.glow, 0.05 * L));
+    g.addColorStop(1, rgba(C.glow, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-W * 2, -H * 4, W * 4, H * 4 + 4);
+    ctx.restore();
+
+    // 하늘 층
+    updateSky();
+    ctx.drawImage(skyTex, 0, 0, W, hy);
+
+    // 건너편 물가
+    if (scene === 'sunset') {
+      ctx.fillStyle = rgba(C.shore, 0.9);
+      shorePath(-1, 1); ctx.fill();
+    } else {
+      ctx.drawImage(bridgeCv, 0, hy - BR.BH, W, BR.BH);
+    }
+
+    // 수면 바탕
+    g = ctx.createLinearGradient(0, hy, 0, H);
+    g.addColorStop(0, rgba(C.waterFar, 1));
+    g.addColorStop(0.38, rgba(C.waterMid, 1));
+    g.addColorStop(1, rgba(C.waterNear, 1));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, hy, W, waterH + 1);
+
+    // 하늘 층이 수면에 희미하게 비침
+    ctx.save();
+    ctx.translate(0, hy); ctx.scale(1, -1);
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(skyTex, 0, -waterH * 0.9, W, waterH * 0.9);
+    ctx.restore();
+
+    // 건너편 물가와 가까운 사물이 수면에 드리우는 어둠
+    if (scene === 'night') drawBridgeMirror();
+    else {
+      {
+      const sg = ctx.createLinearGradient(0, hy, 0, hy + clamp(H * 0.045, 16, 46) * 1.5);
+      sg.addColorStop(0, rgba(C.shore, 0.55)); sg.addColorStop(1, rgba(C.shore, 0.08));
+      ctx.fillStyle = sg;
+      shorePath(1, 1.5); ctx.fill();
+    }
+    {
+      const ww = clamp(W * 0.21, 120, 360), rw = clamp(W * 0.24, 130, 400);
+      let rg = ctx.createRadialGradient(-ww * 0.1, H * 0.8, 0, -ww * 0.1, H * 0.8, ww * 1.3);
+      rg.addColorStop(0, rgba(C.willowMass, 0.6)); rg.addColorStop(1, rgba(C.willowMass, 0));
+      ctx.fillStyle = rg; ctx.fillRect(0, hy, ww * 1.4, waterH);
+      rg = ctx.createRadialGradient(W + rw * 0.1, H * 0.84, 0, W + rw * 0.1, H * 0.84, rw * 1.15);
+      rg.addColorStop(0, rgba(C.reedMass, 0.6)); rg.addColorStop(1, rgba(C.reedMass, 0));
+      ctx.fillStyle = rg; ctx.fillRect(W - rw * 1.2, hy, rw * 1.2, waterH);
+    }
+    }
+
+    // 빛이 수면에 내려앉은 부분
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, hy, W, waterH + 1); ctx.clip();
+    ctx.translate(lx, hy); ctx.scale(0.62, 1);
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, waterH * 1.15);
+    g.addColorStop(0, rgba(C.glow, 0.24 * L));
+    g.addColorStop(0.45, rgba(C.glow, 0.08 * L));
+    g.addColorStop(1, rgba(C.glow, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-W * 4, 0, W * 8, H);
+    ctx.restore();
+
+    /* 물결: 원근이 적용된 수면 높이장(height field)을 가로선으로 표본화 */
+    const strength = CONFIG.waveStrength * (reduced ? CONFIG.reducedMotionStrength : 1);
+    const ampPx = waterH * 0.0105 * strength;
+    const tw = tWave, nW = WAVES.length;
+
+    // 현재 살아 있는 잔물결 상태
+    const act = [];
+    for (let r = ripples.length - 1; r >= 0; r--) {
+      const rp = ripples[r], p = (tRipple - rp.t0) / CONFIG.rippleDuration;
+      if (p >= 1) { ripples.splice(r, 1); continue; }
+      const rmax = CONFIG.rippleSize * rp.z;
+      const env = (1 - p) * (1 - p) * sstep(0, 0.07, p);
+      const rad = rmax * (1 - (1 - p) * (1 - p));
+      act.push({ x: rp.x, z: rp.z, rad: rad, wid: rmax * 0.42, kk: 6.2832 / (rmax * 0.8), env: env,
+                 amp: waterH * 0.012 * CONFIG.rippleStrength * Math.pow(Math.min(rp.z, 8), 0.6) * env });
+    }
+
+    const att = new Float32Array(nW), pz = new Float32Array(nW);
+    for (let i = 0; i < rows; i++) {
+      const s = rowS[i], z = 1 / s, y0 = hy + s * waterH, a = ampPx * s;
+      const xScale = z / waterH;
+      for (let j = 0; j < nW; j++) {
+        const wv = WAVES[j];
+        // 화면에서 너무 촘촘해지는 성분은 서서히 지운다 (먼 곳의 지글거림 방지)
+        att[j] = wv.amp * sstep(2.5 * step, 7 * step, 6.2832 / wv.k * waterH * s);
+        pz[j] = wv.kz * z + wv.w * tw + wv.ph;
+      }
+      const base = i * cols;
+      for (let c = 0; c < cols; c++) {
+        const xw = (c * step - cx) * xScale;
+        let h = 0;
+        for (let j = 0; j < nW; j++) if (att[j] > 0) h += att[j] * Math.sin(WAVES[j].kx * xw + pz[j]);
+        let y = y0 + a * h;
+        for (let r = 0; r < act.length; r++) {
+          const rp = act[r], dz = z - rp.z, reach = rp.rad + rp.wid * 2.5;
+          if (dz > reach || dz < -reach) continue;
+          const dx = xw - rp.x, q = (Math.sqrt(dx * dx + dz * dz) - rp.rad) / rp.wid;
+          if (q > 2.5 || q < -2.5) continue;
+          y += rp.amp * s * Math.exp(-q * q) * Math.cos(q * rp.wid * rp.kk);
+        }
+        ys[base + c] = y;
+      }
+    }
+
+    // 선의 밝기는 빛 아래에서 가장 밝고 양옆으로 잦아든다
+    const lg = ctx.createLinearGradient(lx - W * 0.8, 0, lx + W * 0.8, 0);
+    lg.addColorStop(0, rgba(C.line, 0.1));
+    lg.addColorStop(0.5, rgba(C.line, 1));
+    lg.addColorStop(1, rgba(C.line, 0.1));
+    ctx.lineJoin = 'round';
+
+    for (let i = 0; i < rows; i++) {
+      const s = rowS[i], lz = -Math.log(s), base = i * cols;
+      // 깊이에 따라 천천히 이동하는 명암 띠
+      const m = 0.6 * Math.sin(lz * 3.1 + tw * 0.043 + 1.3 * Math.sin(tw * 0.0127))
+              + 0.4 * Math.sin(lz * 7.3 - tw * 0.067 + 2.0);
+
+      ctx.beginPath();
+      ctx.moveTo(0, ys[base]);
+      for (let c = 1; c < cols; c++) ctx.lineTo(c * step, ys[base + c]);
+      const xEnd = (cols - 1) * step;
+      if (i < rows - 1) {
+        const nb = base + cols;
+        for (let c = cols - 1; c >= 0; c--) ctx.lineTo(c * step, ys[nb + c] + 1);
+      } else {
+        ctx.lineTo(xEnd, H + 2); ctx.lineTo(0, H + 2);
+      }
+      ctx.closePath();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = m > 0 ? rgba(C.line, m * 0.05 * (1 - 0.4 * s)) : 'rgba(24,20,38,' + (-m * 0.1).toFixed(4) + ')';
+      ctx.fill();
+
+      const la = CONFIG.lineOpacity * SC.line * sstep(0.003, 0.11, s) * (0.32 + 0.68 * (0.5 + 0.5 * m)) * (1 - 0.4 * s);
+      if (la > 0.004) {
+        ctx.beginPath();
+        ctx.moveTo(0, ys[base]);
+        for (let c = 1; c < cols; c++) ctx.lineTo(c * step, ys[base + c]);
+        ctx.globalAlpha = la;
+        ctx.strokeStyle = lg;
+        ctx.lineWidth = 0.6 + 0.9 * s;
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    if (scene === 'night') drawLightStreaks();
+
+    // 잔물결의 옅은 테두리
+    for (let r = 0; r < act.length; r++) {
+      const rp = act[r], s = 1 / rp.z;
+      const px = cx + rp.x * waterH * s, py = hy + s * waterH;
+      ctx.strokeStyle = rgba(C.line, 1);
+      ctx.lineWidth = 0.8;
+      for (let k = 0; k < 2; k++) {
+        const rr = rp.rad * (k ? 0.58 : 1), rx = rr * waterH * s, ry = Math.max(0.5, rx * Math.max(s, 0.12));
+        if (rx < 1) continue;
+        ctx.globalAlpha = 0.13 * rp.env * CONFIG.rippleStrength * (k ? 0.6 : 1);
+        ctx.beginPath();
+        ctx.ellipse(px, py, rx, ry, 0, 0, 6.2832);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // 수평선을 부드럽게 흐리는 안개
+    const hz = H * 0.075;
+    g = ctx.createLinearGradient(0, hy - hz, 0, hy + hz * 0.9);
+    g.addColorStop(0, rgba(C.haze, 0));
+    g.addColorStop(0.42, rgba(C.haze, 0.2));
+    g.addColorStop(0.53, rgba(C.haze, 0.34));
+    g.addColorStop(0.68, rgba(C.haze, 0.18));
+    g.addColorStop(1, rgba(C.haze, 0));
+    ctx.fillStyle = g;
+    ctx.globalAlpha = SC.haze;
+    ctx.fillRect(0, hy - hz, W, hz * 1.9);
+    ctx.globalAlpha = 1;
+
+    // 가까운 사물: 버드나무, 갈대, 돌다리 난간
+    const sw = CONFIG.objectSway * (reduced ? CONFIG.reducedMotionStrength : 1);
+    if (scene === 'sunset') { drawWillow(sw); drawReeds(sw); drawParapet(); }
+    else drawBeach();
+
+    // 정적 입자감
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = grainPattern;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /* ---------- 루프 ---------- */
+  const frameMs = 1000 / CONFIG.fps;
+  function frame(now) {
+    rafId = requestAnimationFrame(frame);
+    if (!lastFrame) { lastFrame = now; render(); return; }
+    const el = now - lastFrame;
+    if (el < frameMs - 2) return;
+    lastFrame = now;
+    // 긴 공백 뒤에도 시간이 튀지 않도록 한 프레임의 진행량을 제한
+    const dt = Math.min(el / 1000, 0.1);
+    const ms = reduced ? CONFIG.reducedMotionSpeed : 1;
+    tWave += dt * CONFIG.waveSpeed * ms;
+    tSky += dt * CONFIG.skySpeed * ms;
+    tLight += dt * CONFIG.lightSpeed * ms;
+    tObj += dt * CONFIG.objectSpeed * ms;
+    tRipple += dt * (reduced ? 0.7 : 1);
+    render();
+  }
+  function start() {
+    if (running || paused || document.hidden) return;
+    running = true; lastFrame = 0;
+    rafId = requestAnimationFrame(frame);
+  }
+  function stop() {
+    running = false;
+    cancelAnimationFrame(rafId);
+  }
+  document.addEventListener('visibilitychange', () => { document.hidden ? stop() : start(); });
+
+  /* ---------- 조작부 ---------- */
+  const body = document.body;
+  const btnPause = document.getElementById('btnPause');
+  const btnFull = document.getElementById('btnFull');
+  const icoPause = document.getElementById('icoPause'), icoPlay = document.getElementById('icoPlay');
+  const icoEnter = document.getElementById('icoEnter'), icoExit = document.getElementById('icoExit');
+  const controls = document.getElementById('controls');
+
+  let hideTimer = 0;
+  function showUI() {
+    body.classList.add('ui-visible');
+    body.classList.remove('idle');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (controls.matches(':hover')) { showUI(); return; }
+      body.classList.remove('ui-visible');
+      body.classList.add('idle');
+    }, CONFIG.cursorHideDelay);
+  }
+
+  function setPaused(p) {
+    paused = p;
+    body.classList.toggle('paused', p);
+    icoPause.hidden = p; icoPlay.hidden = !p;
+    const label = p ? '움직임 재개' : '움직임 일시정지';
+    btnPause.setAttribute('aria-label', label);
+    btnPause.title = label + ' (Space)';
+    p ? stop() : start();
+  }
+  const btnScene = document.getElementById('btnScene');
+  let switching = false;
+  function switchScene() {
+    if (switching) return;
+    switching = true;
+    canvas.classList.add('fade');
+    setTimeout(() => {
+      scene = scene === 'sunset' ? 'night' : 'sunset';
+      C = PAL[scene]; SC = SCENE_MUL[scene];
+      tintSky(); ripples.length = 0;
+      const label = '배경 바꾸기: ' + (scene === 'sunset' ? '밤의 다리' : '노을 지는 돌다리');
+      btnScene.setAttribute('aria-label', label);
+      btnScene.title = label + ' (B)';
+      if (!running) render();
+      canvas.classList.remove('fade');
+      switching = false;
+    }, reduced ? 0 : 720);
+  }
+  btnScene.addEventListener('click', () => { switchScene(); showUI(); });
+
+  btnPause.addEventListener('click', () => { setPaused(!paused); showUI(); });
+
+  const root = document.documentElement;
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const canFS = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  function toggleFS() {
+    if (!canFS) return;
+    try {
+      if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else { const p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+  }
+  function syncFS() {
+    const on = !!fsEl();
+    icoEnter.hidden = on; icoExit.hidden = !on;
+    const label = on ? '전체화면 끝내기' : '전체화면으로 전환';
+    btnFull.setAttribute('aria-label', label);
+    btnFull.title = label + ' (F)';
+  }
+  if (canFS) {
+    btnFull.addEventListener('click', () => { toggleFS(); showUI(); });
+    document.addEventListener('fullscreenchange', syncFS);
+    document.addEventListener('webkitfullscreenchange', syncFS);
+  } else {
+    btnFull.hidden = true;   // 전체화면을 지원하지 않는 환경 (예: 일부 모바일 브라우저)
+  }
+
+  window.addEventListener('pointermove', e => { if (e.pointerType !== 'touch') showUI(); }, { passive: true });
+  window.addEventListener('pointerdown', showUI, { passive: true });
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const onButton = e.target && e.target.tagName === 'BUTTON';
+    if (e.key === 'Tab') showUI();
+    else if ((e.key === ' ' || e.code === 'Space') && !onButton) { e.preventDefault(); setPaused(!paused); showUI(); }
+    else if (e.key === 'f' || e.key === 'F' || e.key === 'ㄹ') { toggleFS(); showUI(); }
+    else if (e.key === 'b' || e.key === 'B' || e.key === 'ㅠ') { switchScene(); showUI(); }
+  });
+  controls.addEventListener('focusin', showUI);
+
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button && e.button !== 0) return;
+    addRipple(e.clientX, e.clientY);
+  });
+
+  /* ---------- 시작 ---------- */
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 60); });
+  window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+  resize();
+  render();
+  start();
+})();
+</script>
+</body>
+</html>
